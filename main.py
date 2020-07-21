@@ -88,6 +88,16 @@ app.layout = html.Div([
     ),
 
     html.Div([
+        html.Div([
+            html.Button('Dataset1', id='dataset1', n_clicks=0),
+        ], style={'display': 'flex', 'align-items': 'center', 'justify-content': 'center', 'padding': '20 20'}),
+        html.Div([
+            html.Button('Dataset2', id='dataset2', n_clicks=0)
+        ], style={'display': 'flex', 'align-items': 'center', 'justify-content': 'center', 'padding': '20 20'}),
+
+    ], style={'columnCount': 2}),
+
+    html.Div([
         dcc.Graph(id='raw-polygon-graph'),
     ],
         style={'display': 'inline-block', 'width': '49%'}
@@ -132,9 +142,21 @@ def parse_contents(contents, filename):
 @app.callback([Output('output-data-upload', 'children'),
                Output('raw-polygon-graph', 'figure'),
                Output('sorted-polygon-graph', 'figure')],
-              [Input('upload-data', 'contents')],
+              [Input('upload-data', 'contents'),
+               Input('dataset1', 'n_clicks'),
+               Input('dataset2', 'n_clicks')],
               [State('upload-data', 'filename')])
-def update_output(content, filename):
+def update_output(content, btn1, btn2, filename):
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    if 'dataset1' in changed_id:
+        filename = 'dataset1.json'
+        df = pd.read_json(filename, orient='values')
+        return get_dash_table(df, filename), get_raw_polygon(df), get_sorted_polygon(df)
+    elif 'dataset2' in changed_id:
+        filename = 'dataset2.json'
+        df = pd.read_json(filename, orient='values')
+        return get_dash_table(df, filename), get_raw_polygon(df), get_sorted_polygon(df)
+
     if content is not None:
         df, children = parse_contents(content, filename)
         if df is not None:
