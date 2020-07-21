@@ -1,5 +1,4 @@
 import base64
-import datetime
 import io
 
 import dash
@@ -51,10 +50,23 @@ def get_sorted_polygon(df: pd.DataFrame):
     return go.Figure(data=trace)
 
 
+def get_dash_table(df, filename):
+    return html.Div([
+        html.H5(filename, style={'textAlign': 'center'}),
+        dash_table.DataTable(
+            data=df.to_dict('records'),
+            columns=[{'name': str(i), 'id': str(i)} for i in df.columns],
+            style_cell={'textAlign': 'center'},
+            style_header={'fontWeight': 'bold'},
+        )
+    ])
+
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-init_df = pd.read_json('dataset1.json', orient='values')
+INIT_FILENAME = 'dataset1.json'
+init_df = pd.read_json(INIT_FILENAME, orient='values')
 
 app.layout = html.Div([
     dcc.Upload(
@@ -76,13 +88,13 @@ app.layout = html.Div([
     ),
 
     html.Div([
-        dcc.Graph(id='raw-polygon-graph', figure=get_raw_polygon(init_df)),
+        dcc.Graph(id='raw-polygon-graph'),
     ],
         style={'display': 'inline-block', 'width': '49%'}
     ),
 
     html.Div([
-        dcc.Graph(id='sorted-polygon-graph', figure=get_sorted_polygon(init_df)),
+        dcc.Graph(id='sorted-polygon-graph'),
     ],
         style={'width': '49%', 'display': 'inline-block', 'padding': '0 20'}
     ),
@@ -91,10 +103,11 @@ app.layout = html.Div([
 ])
 
 
-def parse_contents(contents, filename, date):
+def parse_contents(contents, filename):
     content_type, content_string = contents.split(',')
 
     decoded = base64.b64decode(content_string)
+    df = None
     try:
         if 'csv' in filename:
             # Assume that the user uploaded a CSV file
@@ -107,29 +120,29 @@ def parse_contents(contents, filename, date):
             df = pd.read_json(io.StringIO(decoded.decode('utf-8')), orient='values')
     except Exception as e:
         print(e)
-        return html.Div([
+        dash_table_children = html.Div([
             'There was an error processing this file.'
         ])
 
-    return html.Div([
-        html.H5(filename),
-        html.H6(datetime.datetime.fromtimestamp(date)),
+        return df, dash_table_children
 
-        dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': str(i), 'id': str(i)} for i in df.columns]
-        ),
-    ])
+    return df, get_dash_table(df, filename)
 
 
-@app.callback(Output('output-data-upload', 'children'),
+@app.callback([Output('output-data-upload', 'children'),
+               Output('raw-polygon-graph', 'figure'),
+               Output('sorted-polygon-graph', 'figure')],
               [Input('upload-data', 'contents')],
-              [State('upload-data', 'filename'),
-               State('upload-data', 'last_modified')])
-def update_output(content, name, date):
+              [State('upload-data', 'filename')])
+def update_output(content, filename):
     if content is not None:
-        children = [parse_contents(content, name, date)]
-        return children
+        df, children = parse_contents(content, filename)
+        if df is not None:
+            return children, get_raw_polygon(df), get_sorted_polygon(df)
+        else:
+            return children, None, None
+    else:
+        return get_dash_table(init_df, INIT_FILENAME), get_raw_polygon(init_df), get_sorted_polygon(init_df)
 
 
 if __name__ == '__main__':
